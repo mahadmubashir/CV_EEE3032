@@ -1,0 +1,34 @@
+# Assignment PDF file
+Coursework Specification - 2025 (R1).pdf
+
+# MSRC Object Category Image Database v2
+MSRC_ObjCategImageDatabase_v2/
+
+# Generated descriptors folder
+descriptors/
+
+# Python cache files
+__pycache__/
+# *.pyc
+# *.pyo
+# *.pyd
+# .Python
+
+# Virtual environment
+# venv/
+# env/
+# ENV/
+
+# IDE files
+# .vscode/
+# .idea/
+# *.swp
+# *.swo
+
+# OS files
+.DS_Store
+# Thumbs.db
+
+# Temporary files
+# *.tmp
+# *.temp

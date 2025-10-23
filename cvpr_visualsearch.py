@@ -3,8 +3,9 @@ import numpy as np
 import scipy.io as sio
 import cv2
 from random import randint
+from cvpr_compare import cvpr_compare
 
-DESCRIPTOR_FOLDER = 'c:/visiondemo/cwsolution/descriptors'
+DESCRIPTOR_FOLDER = './descriptors'
 DESCRIPTOR_SUBFOLDER = 'globalRGBhisto'
 
 # Load all descriptors
