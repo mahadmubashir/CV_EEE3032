@@ -4,6 +4,7 @@ EEE3032 - Computer Vision and Pattern Recognition
 
 This module performs content-based image retrieval using RGB histogram descriptors
 and evaluates the system using precision-recall metrics.
+Supports PCA-projected descriptors and Mahalanobis distance.
 """
 
 import os
@@ -19,6 +20,7 @@ from cvpr_compare import (
     minkowski_distance, 
     mahalanobis_distance
 )
+from cvpr_pca import load_pca_model
 
 # Configuration
 import matplotlib.pyplot as plt
@@ -28,16 +30,29 @@ import matplotlib.pyplot as plt
 # ============================================================================
 DESCRIPTOR_FOLDER = './descriptors'
 DATASET_IMAGES_FOLDER = './MSRC_ObjCategImageDatabase_v2/Images'
+PCA_MODELS_FOLDER = os.path.join(DESCRIPTOR_FOLDER, 'pca_models')
 TOP_K = 20
 DEBUG = False  # Set to True for verbose debug output
 TILE_SIZE = (320, 212)  # Width, Height for visualization tiles
 
 # Descriptor type mapping to subfolders
-DESCRIPTOR_TYPES = {
-    '1': ('globalRGBhisto', 'Global RGB Histogram'),
-    '2': ('spatialGridRGBhisto', 'Spatial Grid RGB Histogram')
-}
+# DESCRIPTOR_TYPES = {
+#     '1': ('globalRGBhisto', 'Global RGB Histogram', False),
+#     '2': ('spatialGridRGBhisto', 'Spatial Grid RGB Histogram', False),
+#     '3': ('globalRGBhisto_PCA10', 'Global RGB Histogram (PCA 10)', True),
+#     '4': ('globalRGBhisto_PCA20', 'Global RGB Histogram (PCA 20)', True),
+#     '5': ('spatialGridRGBhisto_PCA10', 'Spatial Grid RGB Histogram (PCA 10)', True),
+#     '6': ('spatialGridRGBhisto_PCA20', 'Spatial Grid RGB Histogram (PCA 20)', True),
+#     '7': ('spatialGridRGBhisto_PCA50', 'Spatial Grid RGB Histogram (PCA 50)', True),
+#     '8': ('spatialGridRGBhisto_PCA100', 'Spatial Grid RGB Histogram (PCA 100)', True)
+# }
 
+DESCRIPTOR_TYPES = {
+    '1': ('globalRGBhisto', 'Global RGB Histogram', False),
+    '2': ('spatialGridRGBhisto', 'Spatial Grid RGB Histogram', False),
+    '3': ('globalRGBhisto_PCA4', 'Global RGB Histogram (PCA 4)', True),
+    '4': ('spatialGridRGBhisto_PCA4', 'Spatial Grid RGB Histogram (PCA 4)', True)
+}
 # Distance metric mapping
 DISTANCE_METRICS = {
     '1': ('euclidean', euclidean_distance, 'Euclidean Distance (L2)'),
@@ -57,23 +72,24 @@ def get_user_descriptor_choice():
     Get user input for descriptor type selection.
     
     Returns:
-        tuple: (subfolder_name, descriptor_name)
+        tuple: (subfolder_name, descriptor_name, is_pca)
     """
     print("\n" + "="*60)
     print("DESCRIPTOR TYPE SELECTION")
     print("="*60)
-    for key, (subfolder, name) in DESCRIPTOR_TYPES.items():
-        print(f"  {key}. {name}")
+    for key, (subfolder, name, is_pca) in DESCRIPTOR_TYPES.items():
+        pca_tag = " [PCA]" if is_pca else ""
+        print(f"  {key}. {name}{pca_tag}")
     print("="*60)
     
     while True:
-        choice = input("Select descriptor type (1-2): ").strip()
+        choice = input("Select descriptor type (1-8): ").strip()
         if choice in DESCRIPTOR_TYPES:
-            subfolder, name = DESCRIPTOR_TYPES[choice]
+            subfolder, name, is_pca = DESCRIPTOR_TYPES[choice]
             print(f"Selected: {name}")
-            return subfolder, name
+            return subfolder, name, is_pca
         else:
-            print("Invalid choice. Please enter 1 or 2.")
+            print("Invalid choice. Please enter 1-8.")
 
 
 def get_user_distance_metric():
@@ -169,7 +185,8 @@ def load_descriptors(descriptor_folder, subfolder):
     return np.array(features), image_paths
 
 
-def compute_distances(query_feature, all_features, distance_func=euclidean_distance, distance_name='euclidean'):
+def compute_distances(query_feature, all_features, distance_func=euclidean_distance, 
+                     distance_name='euclidean', pca_model=None):
     """
     Compute distances between query and all database features.
     
@@ -178,19 +195,31 @@ def compute_distances(query_feature, all_features, distance_func=euclidean_dista
         all_features: Array of all feature vectors
         distance_func: Distance function to use
         distance_name: Name of the distance metric (for Mahalanobis)
+        pca_model: dict or None - PCA model if using PCA descriptors (for Mahalanobis)
     
     Returns:
         list: List of (distance, index) tuples sorted by distance
     """
     distances = []
     
-    # For Mahalanobis distance, we need to compute covariance matrix from all features
+    # For Mahalanobis distance, compute covariance matrix
     if distance_name == 'mahalanobis':
-        # Flatten all features for covariance computation
-        features_flat = np.array([f.flatten() for f in all_features])
-        covariance_matrix = np.cov(features_flat.T)
-        # Add small epsilon for numerical stability
-        covariance_matrix = covariance_matrix + np.eye(len(covariance_matrix)) * 1e-6
+        if pca_model is not None:
+            # For PCA-projected features, use diagonal covariance matrix
+            # In PCA space, features are decorrelated, so covariance is diagonal
+            # The diagonal values are the explained variances
+            explained_var = pca_model['explained_variance']
+            # Use only the variances for the dimensions we're using
+            n_dims = len(query_feature.flatten())
+            covariance_matrix = np.diag(explained_var[:n_dims])
+            # Add small epsilon for numerical stability
+            covariance_matrix = covariance_matrix + np.eye(n_dims) * 1e-6
+        else:
+            # For non-PCA features, compute full covariance matrix
+            features_flat = np.array([f.flatten() for f in all_features])
+            covariance_matrix = np.cov(features_flat.T)
+            # Add small epsilon for numerical stability
+            covariance_matrix = covariance_matrix + np.eye(len(covariance_matrix)) * 1e-6
         
         for i, candidate in enumerate(all_features):
             distance = distance_func(query_feature, candidate, covariance_matrix=covariance_matrix)
@@ -318,6 +347,44 @@ def print_ranked_results(ranked_results, image_paths, top_k=10):
 # Main Function
 # ============================================================================
 
+def load_pca_model_for_descriptor(descriptor_subfolder):
+    """
+    Load PCA model corresponding to the descriptor subfolder.
+    
+    Args:
+        descriptor_subfolder: Descriptor subfolder name (e.g., 'globalRGBhisto_PCA10')
+    
+    Returns:
+        dict or None: PCA model if descriptor is PCA-based, None otherwise
+    """
+    # Determine base descriptor type
+    if 'globalRGBhisto' in descriptor_subfolder:
+        base_name = 'globalRGBhisto'
+    elif 'spatialGridRGBhisto' in descriptor_subfolder:
+        base_name = 'spatialGridRGBhisto'
+    else:
+        return None
+    
+    # Check if this is a PCA descriptor
+    if '_PCA' not in descriptor_subfolder:
+        return None
+    
+    # Load corresponding PCA model
+    pca_model_path = os.path.join(PCA_MODELS_FOLDER, f'{base_name}_pca.mat')
+    
+    if not os.path.exists(pca_model_path):
+        print(f"Warning: PCA model not found at {pca_model_path}")
+        return None
+    
+    try:
+        pca_model = load_pca_model(pca_model_path)
+        print(f"Loaded PCA model: {pca_model_path}")
+        return pca_model
+    except Exception as e:
+        print(f"Warning: Failed to load PCA model: {e}")
+        return None
+
+
 def main():
     """Main execution function."""
     print("="*60)
@@ -325,7 +392,7 @@ def main():
     print("="*60)
     
     # Get user input for descriptor type
-    descriptor_subfolder, descriptor_name = get_user_descriptor_choice()
+    descriptor_subfolder, descriptor_name, is_pca = get_user_descriptor_choice()
     
     # Get user input for distance metric
     distance_name, distance_func, distance_display = get_user_distance_metric()
@@ -337,6 +404,16 @@ def main():
     print(f"Loaded {num_images} image descriptors")
     print(f"Descriptor dimension: {all_features.shape[1]}")
     
+    # Load PCA model if using PCA descriptors
+    pca_model = None
+    if is_pca:
+        pca_model = load_pca_model_for_descriptor(descriptor_subfolder)
+        if pca_model is not None:
+            # Extract number of components used
+            n_comp = all_features.shape[1]
+            var_explained = pca_model['cumulative_variance_ratio'][n_comp - 1] * 100
+            print(f"PCA dimensions: {n_comp} components ({var_explained:.2f}% variance explained)")
+    
     # Select random query
     # query_idx = randint(0, num_images - 1)
     query_idx = 50
@@ -347,7 +424,8 @@ def main():
     
     # Compute distances and rank results
     query_feature = all_features[query_idx]
-    distances = compute_distances(query_feature, all_features, distance_func, distance_name)
+    distances = compute_distances(query_feature, all_features, distance_func, 
+                                 distance_name, pca_model=pca_model)
     
     # Exclude query from results for visualization
     ranked_results = [(d, i) for (d, i) in distances if i != query_idx]
