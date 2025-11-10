@@ -32,12 +32,14 @@ PCA_CONFIGS = [
     {'base': 'globalRGBhisto_8bins', 'components': 8, 'name': 'globalRGBhisto_8bins_PCA8'},
     {'base': 'globalRGBhisto_8bins', 'components': 10, 'name': 'globalRGBhisto_8bins_PCA10'},
     {'base': 'globalRGBhisto_8bins', 'components': 16, 'name': 'globalRGBhisto_8bins_PCA16'},
+    {'base': 'globalRGBhisto_8bins', 'components': 18, 'name': 'globalRGBhisto_8bins_PCA18'},
+    {'base': 'globalRGBhisto_8bins', 'components': 20, 'name': 'globalRGBhisto_8bins_PCA20'},
     
     # PCA for spatialGridRGBhisto_8bins_4x4
-    {'base': 'spatialGridRGBhisto_8bins_4x4', 'components': 64, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA64'},
-    {'base': 'spatialGridRGBhisto_8bins_4x4', 'components': 96, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA96'},
-    {'base': 'spatialGridRGBhisto_8bins_4x4', 'components': 128, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA128'},
-    {'base': 'spatialGridRGBhisto_8bins_4x4', 'components': 256, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA256'},
+    {'base': 'spatialGridRGBhisto_8bins_4x4', 'components': 12, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA12'},
+    {'base': 'spatialGridRGBhisto_8bins_4x4', 'components': 16, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA16'},
+    {'base': 'spatialGridRGBhisto_8bins_4x4', 'components': 24, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA24'},
+    {'base': 'spatialGridRGBhisto_8bins_4x4', 'components': 32, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA32'}
 ]
 
 # ============================================================================
