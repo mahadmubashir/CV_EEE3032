@@ -18,7 +18,8 @@ from cvpr_compare import (
     manhattan_distance, 
     chebyshev_distance, 
     minkowski_distance, 
-    mahalanobis_distance
+    mahalanobis_distance,
+    bhattacharyya_distance
 )
 from cvpr_pca import load_pca_model
 
@@ -31,35 +32,18 @@ import matplotlib.pyplot as plt
 DESCRIPTOR_FOLDER = './descriptors'
 DATASET_IMAGES_FOLDER = './MSRC_ObjCategImageDatabase_v2/Images'
 PCA_MODELS_FOLDER = os.path.join(DESCRIPTOR_FOLDER, 'pca_models')
-TOP_K = 20
 DEBUG = False  # Set to True for verbose debug output
 TILE_SIZE = (320, 212)  # Width, Height for visualization tiles
 
-# Descriptor type mapping to subfolders
-# DESCRIPTOR_TYPES = {
-#     '1': ('globalRGBhisto', 'Global RGB Histogram', False),
-#     '2': ('spatialGridRGBhisto', 'Spatial Grid RGB Histogram', False),
-#     '3': ('globalRGBhisto_PCA10', 'Global RGB Histogram (PCA 10)', True),
-#     '4': ('globalRGBhisto_PCA20', 'Global RGB Histogram (PCA 20)', True),
-#     '5': ('spatialGridRGBhisto_PCA10', 'Spatial Grid RGB Histogram (PCA 10)', True),
-#     '6': ('spatialGridRGBhisto_PCA20', 'Spatial Grid RGB Histogram (PCA 20)', True),
-#     '7': ('spatialGridRGBhisto_PCA50', 'Spatial Grid RGB Histogram (PCA 50)', True),
-#     '8': ('spatialGridRGBhisto_PCA100', 'Spatial Grid RGB Histogram (PCA 100)', True)
-# }
-
-DESCRIPTOR_TYPES = {
-    '1': ('globalRGBhisto', 'Global RGB Histogram', False),
-    '2': ('spatialGridRGBhisto', 'Spatial Grid RGB Histogram', False),
-    '3': ('globalRGBhisto_PCA4', 'Global RGB Histogram (PCA 4)', True),
-    '4': ('spatialGridRGBhisto_PCA4', 'Spatial Grid RGB Histogram (PCA 4)', True)
-}
+# Descriptor types will be dynamically loaded from descriptors folder
 # Distance metric mapping
 DISTANCE_METRICS = {
     '1': ('euclidean', euclidean_distance, 'Euclidean Distance (L2)'),
     '2': ('manhattan', manhattan_distance, 'Manhattan Distance (L1)'),
     '3': ('chebyshev', chebyshev_distance, 'Chebyshev Distance (L∞)'),
     '4': ('minkowski', minkowski_distance, 'Minkowski Distance'),
-    '5': ('mahalanobis', mahalanobis_distance, 'Mahalanobis Distance')
+    '5': ('mahalanobis', mahalanobis_distance, 'Mahalanobis Distance'),
+    '6': ('bhattacharyya', bhattacharyya_distance, 'Bhattacharyya Distance')
 }
 
 
@@ -67,29 +51,63 @@ DISTANCE_METRICS = {
 # User Input Functions
 # ============================================================================
 
-def get_user_descriptor_choice():
+def get_available_descriptors(descriptor_folder):
+    """
+    Get list of available descriptor subfolders.
+    
+    Args:
+        descriptor_folder: Base folder containing descriptors
+    
+    Returns:
+        list: List of available descriptor subfolder names (excluding pca_models)
+    """
+    if not os.path.exists(descriptor_folder):
+        return []
+    
+    all_items = os.listdir(descriptor_folder)
+    descriptors = []
+    
+    for item in all_items:
+        item_path = os.path.join(descriptor_folder, item)
+        if os.path.isdir(item_path) and item != 'pca_models':
+            # Check if it contains .mat files
+            if any(f.endswith('.mat') for f in os.listdir(item_path)):
+                descriptors.append(item)
+    
+    return sorted(descriptors)
+
+
+def get_user_descriptor_choice(available_descriptors):
     """
     Get user input for descriptor type selection.
     
+    Args:
+        available_descriptors: list of available descriptor subfolder names
+    
     Returns:
-        tuple: (subfolder_name, descriptor_name, is_pca)
+        tuple: (subfolder_name, is_pca)
     """
     print("\n" + "="*60)
     print("DESCRIPTOR TYPE SELECTION")
     print("="*60)
-    for key, (subfolder, name, is_pca) in DESCRIPTOR_TYPES.items():
+    for idx, desc in enumerate(available_descriptors, 1):
+        is_pca = '_PCA' in desc
         pca_tag = " [PCA]" if is_pca else ""
-        print(f"  {key}. {name}{pca_tag}")
+        print(f"  {idx}. {desc}{pca_tag}")
     print("="*60)
     
     while True:
-        choice = input("Select descriptor type (1-8): ").strip()
-        if choice in DESCRIPTOR_TYPES:
-            subfolder, name, is_pca = DESCRIPTOR_TYPES[choice]
-            print(f"Selected: {name}")
-            return subfolder, name, is_pca
-        else:
-            print("Invalid choice. Please enter 1-8.")
+        try:
+            choice = int(input(f"Select descriptor type (1-{len(available_descriptors)}): ").strip())
+            if 1 <= choice <= len(available_descriptors):
+                selected = available_descriptors[choice - 1]
+                is_pca = '_PCA' in selected
+                print(f"Selected: {selected}")
+                return selected, is_pca
+            else:
+                print(f"Invalid choice. Please enter a number between 1 and {len(available_descriptors)}.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
 
 def get_user_distance_metric():
@@ -130,6 +148,31 @@ def get_user_distance_metric():
             return name, func, display
         else:
             print("Invalid choice. Please enter 1-5.")
+
+
+def get_user_top_k():
+    """
+    Get user input for top_k value.
+    
+    Returns:
+        int: Top K value (between 5 and 30)
+    """
+    print("\n" + "="*60)
+    print("TOP K SELECTION")
+    print("="*60)
+    print("  Enter the number of top results to display (5-30)")
+    print("="*60)
+    
+    while True:
+        try:
+            top_k = int(input("Enter top K (5-30): ").strip())
+            if 5 <= top_k <= 30:
+                print(f"Selected: Top {top_k} results")
+                return top_k
+            else:
+                print("Invalid choice. Please enter a number between 5 and 30.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
 
 # ============================================================================
@@ -352,22 +395,18 @@ def load_pca_model_for_descriptor(descriptor_subfolder):
     Load PCA model corresponding to the descriptor subfolder.
     
     Args:
-        descriptor_subfolder: Descriptor subfolder name (e.g., 'globalRGBhisto_PCA10')
+        descriptor_subfolder: Descriptor subfolder name (e.g., 'globalRGBhisto_8bins_PCA10')
     
     Returns:
         dict or None: PCA model if descriptor is PCA-based, None otherwise
     """
-    # Determine base descriptor type
-    if 'globalRGBhisto' in descriptor_subfolder:
-        base_name = 'globalRGBhisto'
-    elif 'spatialGridRGBhisto' in descriptor_subfolder:
-        base_name = 'spatialGridRGBhisto'
-    else:
-        return None
-    
     # Check if this is a PCA descriptor
     if '_PCA' not in descriptor_subfolder:
         return None
+    
+    # Extract base name by removing _PCA* suffix
+    # e.g., 'globalRGBhisto_8bins_PCA10' -> 'globalRGBhisto_8bins'
+    base_name = descriptor_subfolder.split('_PCA')[0]
     
     # Load corresponding PCA model
     pca_model_path = os.path.join(PCA_MODELS_FOLDER, f'{base_name}_pca.mat')
@@ -391,11 +430,25 @@ def main():
     print("VISUAL SEARCH SYSTEM")
     print("="*60)
     
+    # Get available descriptors
+    print("\nScanning for available descriptors...")
+    available_descriptors = get_available_descriptors(DESCRIPTOR_FOLDER)
+    
+    if not available_descriptors:
+        print(f"❌ No descriptors found in {DESCRIPTOR_FOLDER}")
+        print("Please run cvpr_computedescriptors.py first to generate descriptors.")
+        return
+    
+    print(f"✅ Found {len(available_descriptors)} descriptor(s): {', '.join(available_descriptors)}")
+    
     # Get user input for descriptor type
-    descriptor_subfolder, descriptor_name, is_pca = get_user_descriptor_choice()
+    descriptor_subfolder, is_pca = get_user_descriptor_choice(available_descriptors)
     
     # Get user input for distance metric
     distance_name, distance_func, distance_display = get_user_distance_metric()
+    
+    # Get user input for top_k
+    top_k = get_user_top_k()
     
     # Load descriptors
     print(f"\nLoading descriptors from: {descriptor_subfolder}")
@@ -415,12 +468,12 @@ def main():
             print(f"PCA dimensions: {n_comp} components ({var_explained:.2f}% variance explained)")
     
     # Select random query
-    # query_idx = randint(0, num_images - 1)
-    query_idx = 50
+    query_idx = randint(0, num_images - 1)
     query_path = image_paths[query_idx]
     print(f"\nQuery image: {query_path}")
-    print(f"Descriptor: {descriptor_name}")
+    print(f"Descriptor: {descriptor_subfolder}")
     print(f"Distance metric: {distance_display}")
+    print(f"Top K: {top_k}")
     
     # Compute distances and rank results
     query_feature = all_features[query_idx]
@@ -431,14 +484,14 @@ def main():
     ranked_results = [(d, i) for (d, i) in distances if i != query_idx]
     
     # Visualize results
-    print(f"\nTop {TOP_K} most similar images:")
-    montage = create_results_montage(query_path, ranked_results, image_paths, TOP_K)
+    print(f"\nTop {top_k} most similar images:")
+    montage = create_results_montage(query_path, ranked_results, image_paths, top_k)
     cv2.imshow('Query + Top Results (press any key)', montage)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     
     # Print ranked results
-    print_ranked_results(ranked_results, image_paths, TOP_K)
+    print_ranked_results(ranked_results, image_paths, top_k)
 
 
 if __name__ == "__main__":

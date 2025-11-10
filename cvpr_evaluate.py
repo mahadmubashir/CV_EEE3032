@@ -16,7 +16,9 @@ from cvpr_compare import (
     manhattan_distance,
     chebyshev_distance,
     minkowski_distance,
-    mahalanobis_distance
+    mahalanobis_distance,
+    chi_square_distance,
+    bhattacharyya_distance
 )
 
 
@@ -129,24 +131,23 @@ def get_distance_list(query_feature, all_features, image_paths, distance_functio
 
 def compute_precision_recall(query_path, distance_list, dataset_info, top_k=10, verbose=False, query_idx=None):
     """
-    compute the precision and recall for each query and return the precision and recall for the first 10 results
-    precision is the number of relevant images in the top 10 results divided by the number of images in the top 10 results
-    recall is the number of relevant images in the top 10 results divided by the number of relevant images in the database
-    the relevant images are the images that have the same class as the query image
-    the number of relevant images in the database is the number of images in the database that have the same class as the query image
-    use the analyze_dataset function to get the number of relevant images in the database
-    use the get_class_id_from_filename function to get the class id of the query image and the images in the distance list
+    Compute precision and recall for each query.
+    - Calculates precision and recall at every rank from 1 to total number of images (590)
+    - Returns precisions and recalls arrays only up to top_k
+    - Calculates average_precision using standard formula: AP = (1/R) * Sum(Precision@k * rel(k))
+      where R = total_relevant, rel(k) = 1 if relevant else 0
+    
     Args:
         query_path: path to query image
-        distance_list: sorted list of (distance, image_path) tuples
+        distance_list: sorted list of (distance, image_path) tuples (all 590 images)
         dataset_info: dictionary from analyze_dataset function
-        top_k: number of top results to evaluate
+        top_k: number of top results to include in returned arrays
         verbose: if True, print detailed information
         query_idx: query index for verbose output
     Returns:
         precision_at_k: precision for the top k results (list of precision at each rank 1..k)
         recall_at_k: recall for the top_k results (list of recall at each rank 1..k)
-        average_precision: average precision (AP) for this query
+        average_precision: average precision (AP) calculated using all ranks up to 590
     """
     # Get query class
     query_filename = os.path.basename(query_path)
@@ -157,64 +158,81 @@ def compute_precision_recall(query_path, distance_list, dataset_info, top_k=10, 
     total_relevant = class_counts.get(query_class, 0) - 1  # Subtract 1 for query itself
     total_relevant = max(0, total_relevant)
     
+    # Total number of images in dataset (excluding query)
+    total_images = len(distance_list)
+    
     if verbose and query_idx is not None:
         print(f"\n  Query {query_idx}: {query_filename}")
         print(f"    Query class: {query_class}")
         print(f"    Total relevant images in database (excluding query): {total_relevant}")
-        print(f"    Distance list length: {len(distance_list)}")
-        print(f"    Top {top_k} results being evaluated")
+        print(f"    Total images in distance list: {total_images}")
+        print(f"    Will compute precision/recall for all {total_images} ranks")
+        print(f"    Will return arrays only up to top_k={top_k}")
     
     if total_relevant == 0:
         if verbose:
             print(f"    Warning: No relevant images found for class {query_class}")
         return [0.0] * top_k, [0.0] * top_k, 0.0
     
-    # Get top k results
-    top_k_results = distance_list[:top_k]
-    
-    # Compute precision and recall at each rank k
+    # Compute precision and recall at each rank k (for ALL images, not just top_k)
     precisions = []
     recalls = []
     num_relevant_so_far = 0
-    precision_sum = 0.0
+    precision_sum = 0.0  # Sum of (Precision@k * rel(k)) for all ranks
     
     if verbose:
-        print(f"    Computing precision and recall at each rank k=1..{top_k}:")
+        print(f"    Computing precision and recall at each rank k=1..{total_images} (for AP calculation)")
+        print(f"    Storing values only for ranks 1..{top_k} in output arrays")
+        print(f"    AP formula: AP = (1/R) * Sum from k=1 to N of (Precision@k * rel(k))")
+        print(f"    where R={total_relevant} (total relevant), N={total_images} (total images)")
     
-    for k in range(1, top_k + 1):
+    # Loop through ALL images in distance_list (all 590 images)
+    for k in range(1, total_images + 1):
         # Check if k-th result is relevant
-        _, result_path = top_k_results[k - 1]
+        _, result_path = distance_list[k - 1]
         result_filename = os.path.basename(result_path)
         result_class = get_class_id_from_filename(result_filename)
         
         is_relevant = (result_class == query_class)
+        rel_k = 1 if is_relevant else 0  # rel(k) = 1 if relevant, else 0
+        
         if is_relevant:
             num_relevant_so_far += 1
         
         precision_at_k = num_relevant_so_far / k
-        recall_at_k = num_relevant_so_far / total_relevant
+        recall_at_k = num_relevant_so_far / total_relevant if total_relevant > 0 else 0.0
         
-        if is_relevant:
-            precision_sum += precision_at_k
+        # Add (Precision@k * rel(k)) to sum - only add if image is relevant
+        # This implements: Sum from k=1 to N of (Precision@k * rel(k))
+        precision_sum += precision_at_k * rel_k
         
-        precisions.append(precision_at_k)
-        recalls.append(recall_at_k)
-        
-        if verbose and k <= 5:  # Print first 5 ranks
-            print(f"      Rank {k}: class={result_class}, relevant={is_relevant}, "
-                  f"precision@{k}={precision_at_k:.4f}, recall@{k}={recall_at_k:.4f}, "
-                  f"relevant_so_far={num_relevant_so_far}/{k}")
+        # Only store values up to top_k in the output arrays
+        if k <= top_k:
+            precisions.append(precision_at_k)
+            recalls.append(recall_at_k)
+            
+            if verbose and k <= 5:  # Print first 5 ranks
+                print(f"      Rank {k}: class={result_class}, relevant={is_relevant}, "
+                      f"precision@{k}={precision_at_k:.4f}, recall@{k}={recall_at_k:.4f}, "
+                      f"relevant_so_far={num_relevant_so_far}/{k}, rel(k)={rel_k}")
+    
+    # Number of relevant items found across all ranks
+    num_relevant_retrieved = num_relevant_so_far
     
     if verbose:
         print(f"    Precision@{top_k}: {precisions[-1]:.4f}")
         print(f"    Recall@{top_k}: {recalls[-1]:.4f}")
-        print(f"    Precision sum (for AP): {precision_sum:.4f}")
+        print(f"    Relevant items retrieved across all {total_images} ranks: {num_relevant_retrieved} out of {total_relevant} total relevant")
+        print(f"    Sum of (Precision@k * rel(k)): {precision_sum:.4f}")
     
-    # Compute Average Precision (AP)
-    average_precision = precision_sum / total_relevant if total_relevant > 0 else 0.0
+    # Compute Average Precision (AP) using standard formula
+    # AP = (1/R) * Sum from k=1 to N of (Precision@k * rel(k))
+    # where R = total_relevant, N = total_images
+    average_precision = (1.0 / total_relevant) * precision_sum if total_relevant > 0 else 0.0
     
     if verbose:
-        print(f"    Average Precision (AP): {precision_sum:.4f} / {total_relevant} = {average_precision:.4f}")
+        print(f"    Average Precision (AP): (1/{total_relevant}) * {precision_sum:.4f} = {average_precision:.4f}")
+        print(f"    Note: AP = average of precisions computed ONLY at ranks where a relevant image is found")
         print(f"    Precision list shape: {len(precisions)} (one value per rank 1..{top_k})")
         print(f"    Recall list shape: {len(recalls)} (one value per rank 1..{top_k})")
     
@@ -681,7 +699,9 @@ def get_user_distance_metric():
         '2': ('manhattan', manhattan_distance, 'Manhattan Distance (L1)'),
         '3': ('chebyshev', chebyshev_distance, 'Chebyshev Distance (L∞)'),
         '4': ('minkowski', minkowski_distance, 'Minkowski Distance'),
-        '5': ('mahalanobis', mahalanobis_distance, 'Mahalanobis Distance')
+        '5': ('mahalanobis', mahalanobis_distance, 'Mahalanobis Distance'),
+        '6': ('chi_square', chi_square_distance, 'Chi-Square Distance'),
+        '7': ('bhattacharyya', bhattacharyya_distance, 'Bhattacharyya Distance')
     }
     
     print("\n" + "="*60)

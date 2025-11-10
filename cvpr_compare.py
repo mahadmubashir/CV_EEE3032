@@ -156,6 +156,59 @@ def mahalanobis_distance(F1, F2, covariance_matrix=None, all_features=None):
         return euclidean_distance(F1, F2)
 
 
+def bhattacharyya_distance(F1, F2):
+    """
+    Compute the Bhattacharyya distance between two feature descriptors.
+    
+    Bhattacharyya distance measures the similarity between two probability distributions.
+    It's particularly useful for comparing histograms. Formula: -ln(sum(sqrt(F1[i] * F2[i])))
+    
+    Args:
+        F1, F2: numpy.ndarray - Feature descriptors (should be normalized histograms)
+    
+    Returns:
+        float: Bhattacharyya distance (lower = more similar)
+    """
+    F1_flat, F2_flat = _validate_descriptors(F1, F2)
+    
+    # Compute Bhattacharyya coefficient: sum(sqrt(F1[i] * F2[i]))
+    # Add small epsilon to avoid issues with zero values
+    epsilon = 1e-10
+    bc = np.sum(np.sqrt(np.maximum(F1_flat * F2_flat, epsilon)))
+    
+    # Compute Bhattacharyya distance: -ln(BC)
+    # Clamp BC to avoid log(0) or log(negative)
+    bc = np.clip(bc, epsilon, 1.0)
+    bhattacharyya_dist = -np.log(bc)
+    
+    return bhattacharyya_dist
+
+
+def chi_square_distance(F1, F2):
+    """
+    Compute the Chi-square distance between two feature descriptors.
+    
+    Chi-square distance is commonly used for comparing histograms. It measures the
+    difference between two distributions. Formula: sum((F1[i] - F2[i])^2 / (F1[i] + F2[i]))
+    
+    Args:
+        F1, F2: numpy.ndarray - Feature descriptors (typically normalized histograms)
+    
+    Returns:
+        float: Chi-square distance (lower = more similar)
+    """
+    F1_flat, F2_flat = _validate_descriptors(F1, F2)
+    
+    # Compute chi-square distance: sum((F1[i] - F2[i])^2 / (F1[i] + F2[i] + epsilon))
+    # Add small epsilon to denominator to avoid division by zero
+    epsilon = 1e-10
+    diff = F1_flat - F2_flat
+    denominator = F1_flat + F2_flat + epsilon
+    chi_square_dist = np.sum((diff ** 2) / denominator)
+    
+    return chi_square_dist
+
+
 def cvpr_compare(F1, F2):
     """
     Default comparison function using Euclidean distance.

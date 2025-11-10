@@ -16,6 +16,7 @@ DESCRIPTOR_CONFIGS = [
     {'type': 'global', 'bins': 4, 'name': 'globalRGBhisto_4bins'},
     {'type': 'global', 'bins': 8, 'name': 'globalRGBhisto_8bins'},
     {'type': 'global', 'bins': 16, 'name': 'globalRGBhisto_16bins'},
+    {'type': 'global', 'bins': 32, 'name': 'globalRGBhisto_32bins'},
     
     # Spatial Grid RGB Histograms
     {'type': 'spatial', 'bins': 8, 'rows': 2, 'cols': 2, 'name': 'spatialGridRGBhisto_8bins_2x2'},
