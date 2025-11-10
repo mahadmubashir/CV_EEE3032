@@ -21,6 +21,7 @@ DESCRIPTOR_CONFIGS = [
     # Spatial Grid RGB Histograms
     {'type': 'spatial', 'bins': 8, 'rows': 2, 'cols': 2, 'name': 'spatialGridRGBhisto_8bins_2x2'},
     {'type': 'spatial', 'bins': 8, 'rows': 4, 'cols': 4, 'name': 'spatialGridRGBhisto_8bins_4x4'},
+    {'type': 'spatial', 'bins': 8, 'rows': 6, 'cols': 6, 'name': 'spatialGridRGBhisto_8bins_6x6'},
     {'type': 'spatial', 'bins': 8, 'rows': 8, 'cols': 8, 'name': 'spatialGridRGBhisto_8bins_8x8'},
 ]
 
