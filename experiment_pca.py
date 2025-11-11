@@ -159,6 +159,61 @@ def plot_map_comparison_line(map_results, title, save_path):
     plt.close()
 
 
+def plot_summary_table(all_results, save_path):
+    """
+    Create a summary table showing mAP, Precision@10, and Recall@10 for all combinations.
+    
+    Args:
+        all_results: list of dicts, each with 'descriptor', 'distance', 'mAP', 
+                    'precision_at_10', 'recall_at_10'
+        save_path: path to save the table
+    """
+    # Create table data
+    table_data = []
+    table_data.append(['Descriptor', 'Distance Metric', 'mAP', 'Precision@10', 'Recall@10'])
+    
+    for result in all_results:
+        table_data.append([
+            result['descriptor'],
+            result['distance'],
+            f"{result['mAP']:.4f}",
+            f"{result['precision_at_10']:.4f}",
+            f"{result['recall_at_10']:.4f}"
+        ])
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(16, max(8, len(all_results) * 0.4 + 2)))
+    ax.axis('off')
+    
+    # Create table
+    table = ax.table(cellText=table_data[1:], colLabels=table_data[0],
+                      cellLoc='center', loc='center',
+                      colWidths=[0.30, 0.25, 0.15, 0.15, 0.15])
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 2.0)
+    
+    # Style header row
+    for i in range(len(table_data[0])):
+        table[(0, i)].set_facecolor('#4CAF50')
+        table[(0, i)].set_text_props(weight='bold', color='white')
+    
+    # Style data rows (alternating colors)
+    for i in range(1, len(table_data)):
+        for j in range(len(table_data[0])):
+            if i % 2 == 0:
+                table[(i, j)].set_facecolor('#f0f0f0')
+    
+    ax.set_title('PCA Descriptors - Comprehensive Evaluation Summary\n'
+                'All Descriptor-Distance Metric Combinations (Mahalanobis Distance)', 
+                fontsize=14, fontweight='bold', pad=20)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    print(f"✅ Summary table saved to: {save_path}")
+    plt.close()
+
+
 def main():
     """
     Main function to run PCA descriptor evaluation experiments.
@@ -214,7 +269,10 @@ def main():
             'precisions': all_precisions,
             'recalls': all_recalls,
             'mAP': mean_average_precision,
-            'label': label
+            'mean_precision_at_10': mean_precision_at_10,
+            'mean_recall_at_10': mean_recall_at_10,
+            'label': label,
+            'descriptor_name': descriptor_name
         })
         
         gch_map_data.append({
@@ -284,7 +342,10 @@ def main():
             'precisions': all_precisions,
             'recalls': all_recalls,
             'mAP': mean_average_precision,
-            'label': label
+            'mean_precision_at_10': mean_precision_at_10,
+            'mean_recall_at_10': mean_recall_at_10,
+            'label': label,
+            'descriptor_name': descriptor_name
         })
         
         spatial_map_data.append({
@@ -311,7 +372,40 @@ def main():
     )
     
     # ============================================================================
-    # Summary
+    # Summary Table: Collect all results for comprehensive comparison
+    # ============================================================================
+    print("\n" + "="*80)
+    print("GENERATING COMPREHENSIVE SUMMARY TABLE")
+    print("="*80)
+    
+    all_summary_results = []
+    
+    # Add Experiment 1 results (globalRGBhisto_8bins PCA descriptors with Mahalanobis distance)
+    for result in gch_pca_results:
+        all_summary_results.append({
+            'descriptor': result['descriptor_name'],
+            'distance': 'Mahalanobis Distance',
+            'mAP': result['mAP'],
+            'precision_at_10': result['mean_precision_at_10'],
+            'recall_at_10': result['mean_recall_at_10']
+        })
+    
+    # Add Experiment 2 results (spatialGridRGBhisto_8bins_4x4 PCA descriptors with Mahalanobis distance)
+    for result in spatial_pca_results:
+        all_summary_results.append({
+            'descriptor': result['descriptor_name'],
+            'distance': 'Mahalanobis Distance',
+            'mAP': result['mAP'],
+            'precision_at_10': result['mean_precision_at_10'],
+            'recall_at_10': result['mean_recall_at_10']
+        })
+    
+    # Generate summary table
+    summary_table_path = os.path.join(EXPERIMENTS_FOLDER, 'pca_comprehensive_summary_table.png')
+    plot_summary_table(all_summary_results, summary_table_path)
+    
+    # ============================================================================
+    # Print Summary
     # ============================================================================
     print("\n" + "="*80)
     print("EXPERIMENT SUMMARY")
@@ -333,6 +427,7 @@ def main():
     print(f"  2. gch_pca_map_comparison.png - mAP comparison for globalRGBhisto_8bins PCA")
     print(f"  3. spatial_pca_pr_curves.png - PR Curves for spatialGridRGBhisto_8bins_4x4 PCA")
     print(f"  4. spatial_pca_map_comparison.png - mAP comparison for spatialGridRGBhisto_8bins_4x4 PCA")
+    print(f"  5. pca_comprehensive_summary_table.png - Comprehensive summary table")
     print("="*80)
 
 

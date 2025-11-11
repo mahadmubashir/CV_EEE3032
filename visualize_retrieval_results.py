@@ -24,7 +24,7 @@ PCA_MODELS_FOLDER = './descriptors/pca_models'
 OUTPUT_FOLDER = './experiments/retrieval_visualizations'
 
 # Configuration: n random queries
-N_QUERIES = 2
+N_QUERIES = 1
 TOP_K = 10
 
 # Descriptor-distance combinations to visualize
@@ -339,14 +339,30 @@ def main():
         print(f"❌ Not enough images in dataset. Need at least {N_QUERIES}, found {len(image_paths_temp)}")
         return
     
-    # Select random query images
-    np.random.seed(42)  # For reproducibility
-    query_indices = np.random.choice(len(image_paths_temp), size=N_QUERIES, replace=False)
+    # Select specific query images from class 2 and class 13
+    desired_classes = [2, 13]
+    query_indices = []
+    # Build class list from filenames
+    filenames = [os.path.basename(p) for p in image_paths_temp]
+    classes = [get_class_id_from_filename(fn) for fn in filenames]
+    for desired_class in desired_classes:
+        indices_of_class = [i for i, c in enumerate(classes) if c == desired_class]
+        if indices_of_class:
+            # Pick first index of the desired class
+            query_indices.append(indices_of_class[0])
+        else:
+            print(f"⚠️  No images found for desired class {desired_class}. Selecting a random image instead.")
+            # Fallback to random index if class not found
+            np.random.seed(42)
+            query_indices.append(np.random.randint(0, len(image_paths_temp)))
+    # Ensure length matches N_QUERIES (in case config differs)
+    query_indices = np.array(query_indices[:N_QUERIES])
     
-    print(f"\n📷 Selected {N_QUERIES} random query images:")
+    print(f"\n📷 Selected {N_QUERIES} query images from classes {desired_classes}:")
     for i, idx in enumerate(query_indices, 1):
         query_filename = os.path.basename(image_paths_temp[idx])
-        print(f"  Query {i}: {query_filename} (index {idx})")
+        query_class = get_class_id_from_filename(query_filename)
+        print(f"  Query {i}: {query_filename} (index {idx})  -> class {query_class}")
     
     # Generate visualization for each descriptor-distance combination
     for config in DESCRIPTOR_CONFIGS:

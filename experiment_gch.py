@@ -161,6 +161,61 @@ def plot_map_comparison(map_results, title, save_path):
     plt.close()
 
 
+def plot_summary_table(all_results, save_path):
+    """
+    Create a summary table showing mAP, Precision@10, and Recall@10 for all combinations.
+    
+    Args:
+        all_results: list of dicts, each with 'descriptor', 'distance', 'mAP', 
+                    'precision_at_10', 'recall_at_10'
+        save_path: path to save the table
+    """
+    # Create table data
+    table_data = []
+    table_data.append(['Descriptor', 'Distance Metric', 'mAP', 'Precision@10', 'Recall@10'])
+    
+    for result in all_results:
+        table_data.append([
+            result['descriptor'],
+            result['distance'],
+            f"{result['mAP']:.4f}",
+            f"{result['precision_at_10']:.4f}",
+            f"{result['recall_at_10']:.4f}"
+        ])
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(16, max(8, len(all_results) * 0.4 + 2)))
+    ax.axis('off')
+    
+    # Create table
+    table = ax.table(cellText=table_data[1:], colLabels=table_data[0],
+                      cellLoc='center', loc='center',
+                      colWidths=[0.30, 0.25, 0.15, 0.15, 0.15])
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 2.0)
+    
+    # Style header row
+    for i in range(len(table_data[0])):
+        table[(0, i)].set_facecolor('#4CAF50')
+        table[(0, i)].set_text_props(weight='bold', color='white')
+    
+    # Style data rows (alternating colors)
+    for i in range(1, len(table_data)):
+        for j in range(len(table_data[0])):
+            if i % 2 == 0:
+                table[(i, j)].set_facecolor('#f0f0f0')
+    
+    ax.set_title('GCH Feature Descriptors - Comprehensive Evaluation Summary\n'
+                'All Descriptor-Distance Metric Combinations', 
+                fontsize=14, fontweight='bold', pad=20)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    print(f"✅ Summary table saved to: {save_path}")
+    plt.close()
+
+
 def main():
     """
     Main function to run GCH comparison experiments.
@@ -213,6 +268,8 @@ def main():
             'precisions': all_precisions,
             'recalls': all_recalls,
             'mAP': mean_average_precision,
+            'mean_precision_at_10': mean_precision_at_10,
+            'mean_recall_at_10': mean_recall_at_10,
             'label': descriptor_name.replace('globalRGBhisto_', '').replace('bins', ' bins')
         })
         
@@ -281,6 +338,8 @@ def main():
             'precisions': all_precisions,
             'recalls': all_recalls,
             'mAP': mean_average_precision,
+            'mean_precision_at_10': mean_precision_at_10,
+            'mean_recall_at_10': mean_recall_at_10,
             'label': dist_display
         })
     
@@ -294,7 +353,41 @@ def main():
     )
     
     # ============================================================================
-    # Summary
+    # Summary Table: Collect all results for comprehensive comparison
+    # ============================================================================
+    print("\n" + "="*60)
+    print("GENERATING COMPREHENSIVE SUMMARY TABLE")
+    print("="*60)
+    
+    all_summary_results = []
+    
+    # Add Experiment 1 results (GCH quantization levels with Chi-square distance)
+    for result in experiment1_results:
+        descriptor_label = result['label']
+        all_summary_results.append({
+            'descriptor': f'globalRGBhisto_{descriptor_label.replace(" bins", "bins")}',
+            'distance': 'Chi-square Distance',
+            'mAP': result['mAP'],
+            'precision_at_10': result['mean_precision_at_10'],
+            'recall_at_10': result['mean_recall_at_10']
+        })
+    
+    # Add Experiment 2 results (Distance metrics with globalRGBhisto_8bins)
+    for result in experiment2_results:
+        all_summary_results.append({
+            'descriptor': 'globalRGBhisto_8bins',
+            'distance': result['label'],
+            'mAP': result['mAP'],
+            'precision_at_10': result['mean_precision_at_10'],
+            'recall_at_10': result['mean_recall_at_10']
+        })
+    
+    # Generate summary table
+    summary_table_path = os.path.join(EXPERIMENTS_FOLDER, 'gch_comprehensive_summary_table.png')
+    plot_summary_table(all_summary_results, summary_table_path)
+    
+    # ============================================================================
+    # Print Summary
     # ============================================================================
     print("\n" + "="*60)
     print("EXPERIMENT SUMMARY")
@@ -315,6 +408,7 @@ def main():
     print(f"  1. gch_quantization_comparison_pr_curves.png")
     print(f"  2. gch_quantization_map_comparison.png")
     print(f"  3. gch_distance_metrics_comparison_pr_curves.png")
+    print(f"  4. gch_comprehensive_summary_table.png")
     print("="*60)
 
 
