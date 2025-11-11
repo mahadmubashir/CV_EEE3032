@@ -28,8 +28,6 @@ DESCRIPTOR_CONFIGS = [
 # PCA configurations
 PCA_CONFIGS = [
     # PCA for globalRGBhisto_8bins
-    {'base': 'globalRGBhisto_8bins', 'components': 4, 'name': 'globalRGBhisto_8bins_PCA4'},
-    {'base': 'globalRGBhisto_8bins', 'components': 8, 'name': 'globalRGBhisto_8bins_PCA8'},
     {'base': 'globalRGBhisto_8bins', 'components': 10, 'name': 'globalRGBhisto_8bins_PCA10'},
     {'base': 'globalRGBhisto_8bins', 'components': 16, 'name': 'globalRGBhisto_8bins_PCA16'},
     {'base': 'globalRGBhisto_8bins', 'components': 18, 'name': 'globalRGBhisto_8bins_PCA18'},

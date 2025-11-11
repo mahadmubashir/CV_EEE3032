@@ -25,20 +25,20 @@ DESCRIPTORS_TO_VISUALIZE = [
         'name': 'globalRGBhisto_8bins',
         'display_name': 'Global RGB Histogram (8 bins)',
         'pca_configs': [
-            {'components': 4, 'name': 'globalRGBhisto_8bins_PCA4'},
-            {'components': 8, 'name': 'globalRGBhisto_8bins_PCA8'},
             {'components': 10, 'name': 'globalRGBhisto_8bins_PCA10'},
+            {'components': 12, 'name': 'globalRGBhisto_8bins_PCA12'},
             {'components': 16, 'name': 'globalRGBhisto_8bins_PCA16'},
+            {'components': 20, 'name': 'globalRGBhisto_8bins_PCA20'},
         ]
     },
     {
         'name': 'spatialGridRGBhisto_8bins_4x4',
         'display_name': 'Spatial Grid RGB Histogram (8 bins, 4×4 grid)',
         'pca_configs': [
-            {'components': 64, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA64'},
-            {'components': 96, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA96'},
-            {'components': 128, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA128'},
-            {'components': 256, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA256'},
+            {'components': 12, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA12'},
+            {'components': 16, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA16'},
+            {'components': 24, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA24'},
+            {'components': 32, 'name': 'spatialGridRGBhisto_8bins_4x4_PCA32'},
         ]
     }
 ]
